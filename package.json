@@ -1,8 +1,8 @@
 {
     "name": "com.vis2k.mirror",
     "displayName": "Mirror",
-    "version": "45.2.0",
-    "unity": "2020.1",
+    "version": "65.0.1",
+    "unity": "2020.3",
     "description": "Mirror is a high level Networking library for Unity 2019/2020 LTS, compatible with different low level Transports.",
     "author": "vis2k",
     "repository": {
