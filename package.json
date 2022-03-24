@@ -1,7 +1,7 @@
 {
     "name": "com.vis2k.mirror",
     "displayName": "Mirror",
-    "version": "65.0.1",
+    "version": "66.0.1",
     "unity": "2020.3",
     "description": "Mirror is a high level Networking library for Unity 2019/2020 LTS, compatible with different low level Transports.",
     "author": "vis2k",
@@ -14,9 +14,9 @@
         "url": "https://github.com/Project-Trains/Mirror"
     },
     "dependencies": {
-        "com.unity.modules.ui": "1.0.0",
-        "com.unity.modules.animation": "1.0.0",
+        "com.unity.modules.physics": "1.0.0",
         "com.unity.modules.physics2d": "1.0.0",
-        "com.unity.modules.physics": "1.0.0"
+        "com.unity.modules.animation": "1.0.0",
+        "com.unity.ugui": "1.0.0"
     }
 }

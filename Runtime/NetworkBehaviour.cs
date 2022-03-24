@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using Mirror.RemoteCalls;
 
 namespace Mirror
 {
@@ -44,8 +45,7 @@ namespace Mirror
         /// <summary>True if this object is on the client-only, not host.</summary>
         public bool isClientOnly => netIdentity.isClientOnly;
 
-        /// <summary>This returns true if this object is the authoritative version of the object in the distributed network application.</summary>
-        // keeping this ridiculous summary as a reminder of a time long gone...
+        /// <summary>True on client if that component has been assigned to the client. E.g. player, pets, henchmen.</summary>
         public bool hasAuthority => netIdentity.hasAuthority;
 
         /// <summary>The unique network Id of this object (unique at runtime).</summary>
@@ -235,8 +235,7 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                // type+func so Inventory.RpcUse != Equipment.RpcUse
-                functionHash = functionFullName.GetStableHashCode(),
+                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
@@ -271,8 +270,7 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                // type+func so Inventory.RpcUse != Equipment.RpcUse
-                functionHash = functionFullName.GetStableHashCode(),
+                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
@@ -319,8 +317,7 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                // type+func so Inventory.RpcUse != Equipment.RpcUse
-                functionHash = functionFullName.GetStableHashCode(),
+                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
