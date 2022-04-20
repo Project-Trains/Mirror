@@ -264,11 +264,6 @@ namespace Mirror
             RemoveConnection(0);
         }
 
-        /// <summary>True if we have no external connections (host is allowed)</summary>
-        // DEPRECATED 2022-02-05
-        [Obsolete("Use !HasExternalConnections() instead of NoExternalConnections() to avoid double negatives.")]
-        public static bool NoExternalConnections() => !HasExternalConnections();
-
         /// <summary>True if we have external connections (that are not host)</summary>
         public static bool HasExternalConnections()
         {
@@ -388,12 +383,6 @@ namespace Mirror
             }
         }
 
-        // Deprecated 2021-09-19
-        [Obsolete("SendToReady(identity, message, ...) was renamed to SendToReadyObservers because that's what it does.")]
-        public static void SendToReady<T>(NetworkIdentity identity, T message, bool includeOwner = true, int channelId = Channels.Reliable)
-            where T : struct, NetworkMessage =>
-                SendToReadyObservers(identity, message, includeOwner, channelId);
-
         /// <summary>Send a message to only clients which are ready including the owner of the NetworkIdentity</summary>
         // TODO put rpcs into NetworkServer.Update WorldState packet, then finally remove SendToReady!
         public static void SendToReadyObservers<T>(NetworkIdentity identity, T message, int channelId)
@@ -401,12 +390,6 @@ namespace Mirror
         {
             SendToReadyObservers(identity, message, true, channelId);
         }
-
-        // Deprecated 2021-09-19
-        [Obsolete("SendToReady(identity, message, ...) was renamed to SendToReadyObservers because that's what it does.")]
-        public static void SendToReady<T>(NetworkIdentity identity, T message, int channelId)
-            where T : struct, NetworkMessage =>
-                SendToReadyObservers(identity, message, channelId);
 
         // transport events ////////////////////////////////////////////////////
         // called by transport
@@ -966,7 +949,7 @@ namespace Mirror
             // Commands can be for player objects, OR other objects with client-authority
             // -> so if this connection's controller has a different netId then
             //    only allow the command if clientAuthorityOwner
-            bool requiresAuthority = RemoteProcedureCalls.CommandRequiresAuthority(msg.functionIndex);
+            bool requiresAuthority = RemoteProcedureCalls.CommandRequiresAuthority(msg.functionHash);
             if (requiresAuthority && identity.connectionToClient != conn)
             {
                 Debug.LogWarning($"Command for object without authority [netId={msg.netId}]");
@@ -976,7 +959,7 @@ namespace Mirror
             // Debug.Log($"OnCommandMessage for netId:{msg.netId} conn:{conn}");
 
             using (NetworkReaderPooled networkReader = NetworkReaderPool.Get(msg.payload))
-                identity.HandleRemoteCall(msg.componentIndex, msg.functionIndex, RemoteCallType.Command, networkReader, conn as NetworkConnectionToClient);
+                identity.HandleRemoteCall(msg.componentIndex, msg.functionHash, RemoteCallType.Command, networkReader, conn as NetworkConnectionToClient);
         }
 
         // spawning ////////////////////////////////////////////////////////////

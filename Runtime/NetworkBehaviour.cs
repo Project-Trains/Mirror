@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using UnityEngine;
-using Mirror.RemoteCalls;
 
 namespace Mirror
 {
@@ -103,10 +102,6 @@ namespace Mirror
         protected bool GetSyncVarHookGuard(ulong dirtyBit) =>
             (syncVarHookGuard & dirtyBit) != 0UL;
 
-        // Deprecated 2021-09-16 (old weavers used it)
-        [Obsolete("Renamed to GetSyncVarHookGuard (uppercase)")]
-        protected bool getSyncVarHookGuard(ulong dirtyBit) => GetSyncVarHookGuard(dirtyBit);
-
         // USED BY WEAVER to set syncvars in host mode without deadlocking
         protected void SetSyncVarHookGuard(ulong dirtyBit, bool value)
         {
@@ -118,20 +113,12 @@ namespace Mirror
                 syncVarHookGuard &= ~dirtyBit;
         }
 
-        // Deprecated 2021-09-16 (old weavers used it)
-        [Obsolete("Renamed to SetSyncVarHookGuard (uppercase)")]
-        protected void setSyncVarHookGuard(ulong dirtyBit, bool value) => SetSyncVarHookGuard(dirtyBit, value);
-
         /// <summary>Set as dirty so that it's synced to clients again.</summary>
         // these are masks, not bit numbers, ie. 110011b not '2' for 2nd bit.
         public void SetSyncVarDirtyBit(ulong dirtyBit)
         {
             syncVarDirtyBits |= dirtyBit;
         }
-
-        // Deprecated 2021-09-19
-        [Obsolete("SetDirtyBit was renamed to SetSyncVarDirtyBit because that's what it does")]
-        public void SetDirtyBit(ulong dirtyBit) => SetSyncVarDirtyBit(dirtyBit);
 
         // true if syncInterval elapsed and any SyncVar or SyncObject is dirty
         public bool IsDirty()
@@ -235,7 +222,8 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
+                // type+func so Inventory.RpcUse != Equipment.RpcUse
+                functionHash = (ushort)functionFullName.GetStableHashCode(),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
@@ -270,7 +258,8 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
+                // type+func so Inventory.RpcUse != Equipment.RpcUse
+                functionHash = (ushort)functionFullName.GetStableHashCode(),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
@@ -317,7 +306,8 @@ namespace Mirror
             {
                 netId = netId,
                 componentIndex = (byte)ComponentIndex,
-                functionIndex = RemoteProcedureCalls.GetIndexFromFunctionHash(functionFullName),
+                // type+func so Inventory.RpcUse != Equipment.RpcUse
+                functionHash = (ushort)functionFullName.GetStableHashCode(),
                 // segment to avoid reader allocations
                 payload = writer.ToArraySegment()
             };
