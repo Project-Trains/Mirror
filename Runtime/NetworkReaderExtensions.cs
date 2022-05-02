@@ -271,15 +271,34 @@ namespace Mirror
 
         public static Texture2D ReadTexture2D(this NetworkReader reader)
         {
-            Texture2D texture2D = new Texture2D(32, 32);
-            texture2D.SetPixels32(reader.Read<Color32[]>());
+            // TODO allocation protection when sending textures to server.
+            //      currently can allocate 32k x 32k x 4 byte = 3.8 GB
+
+            // support 'null' textures for [SyncVar]s etc.
+            // https://github.com/vis2k/Mirror/issues/3144
+            short width = reader.ReadShort();
+            if (width == -1) return null;
+
+            // read height
+            short height = reader.ReadShort();
+            Texture2D texture2D = new Texture2D(width, height);
+
+            // read pixel content
+            Color32[] pixels = reader.ReadArray<Color32>();
+            texture2D.SetPixels32(pixels);
             texture2D.Apply();
             return texture2D;
         }
 
         public static Sprite ReadSprite(this NetworkReader reader)
         {
-            return Sprite.Create(reader.ReadTexture2D(), reader.ReadRect(), reader.ReadVector2());
+            // support 'null' textures for [SyncVar]s etc.
+            // https://github.com/vis2k/Mirror/issues/3144
+            Texture2D texture = reader.ReadTexture2D();
+            if (texture == null) return null;
+
+            // otherwise create a valid sprite
+            return Sprite.Create(texture, reader.ReadRect(), reader.ReadVector2());
         }
     }
 }

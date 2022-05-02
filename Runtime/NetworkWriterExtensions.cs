@@ -291,11 +291,36 @@ namespace Mirror
 
         public static void WriteTexture2D(this NetworkWriter writer, Texture2D texture2D)
         {
+            // TODO allocation protection when sending textures to server.
+            //      currently can allocate 32k x 32k x 4 byte = 3.8 GB
+
+            // support 'null' textures for [SyncVar]s etc.
+            // https://github.com/vis2k/Mirror/issues/3144
+            // simply send -1 for width.
+            if (texture2D == null)
+            {
+                writer.WriteShort(-1);
+                return;
+            }
+
+            // write dimensions first so reader can create the texture with size
+            // 32k x 32k short is more than enough
+            writer.WriteShort((short)texture2D.width);
+            writer.WriteShort((short)texture2D.height);
             writer.WriteArray(texture2D.GetPixels32());
         }
 
         public static void WriteSprite(this NetworkWriter writer, Sprite sprite)
         {
+            // support 'null' textures for [SyncVar]s etc.
+            // https://github.com/vis2k/Mirror/issues/3144
+            // simply send a 'null' for texture content.
+            if (sprite == null)
+            {
+                writer.WriteTexture2D(null);
+                return;
+            }
+
             writer.WriteTexture2D(sprite.texture);
             writer.WriteRect(sprite.rect);
             writer.WriteVector2(sprite.pivot);
