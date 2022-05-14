@@ -109,7 +109,7 @@ namespace Mirror
             Transport.activeTransport.OnClientConnected += OnTransportConnected;
             Transport.activeTransport.OnClientDataReceived += OnTransportData;
             Transport.activeTransport.OnClientDisconnected += OnTransportDisconnected;
-            Transport.activeTransport.OnClientError += OnError;
+            Transport.activeTransport.OnClientError += OnTransportError;
         }
 
         static void RemoveTransportHandlers()
@@ -118,7 +118,7 @@ namespace Mirror
             Transport.activeTransport.OnClientConnected -= OnTransportConnected;
             Transport.activeTransport.OnClientDataReceived -= OnTransportData;
             Transport.activeTransport.OnClientDisconnected -= OnTransportDisconnected;
-            Transport.activeTransport.OnClientError -= OnError;
+            Transport.activeTransport.OnClientError -= OnTransportError;
         }
 
         internal static void RegisterSystemHandlers(bool hostMode)
@@ -432,9 +432,12 @@ namespace Mirror
             RemoveTransportHandlers();
         }
 
-        static void OnError(Exception exception)
+        // transport errors are forwarded to high level
+        static void OnTransportError(Exception exception)
         {
-            Debug.LogException(exception);
+            // transport errors will happen. logging a warning is enough.
+            // make sure the user does not panic.
+            Debug.LogWarning($"Client Transport Error: {exception}. This is fine.");
             OnErrorEvent?.Invoke(exception);
         }
 
@@ -1164,7 +1167,17 @@ namespace Mirror
                 // add all unspawned NetworkIdentities to spawnable objects
                 if (ConsiderForSpawning(identity))
                 {
-                    spawnableObjects.Add(identity.sceneId, identity);
+                    if (spawnableObjects.TryGetValue(identity.sceneId, out NetworkIdentity existingIdentity))
+                    {
+                        string msg = $"NetworkClient: Duplicate sceneId {identity.sceneId} detected on {identity.gameObject.name} and {existingIdentity.gameObject.name}\n" +
+                            $"This can happen if a networked object is persisted in DontDestroyOnLoad through loading / changing to the scene where it originated,\n" +
+                            $"otherwise you may need to open and re-save the {identity.gameObject.scene} to reset scene id's.";
+                        Debug.LogWarning(msg, identity.gameObject);
+                    }
+                    else
+                    {
+                        spawnableObjects.Add(identity.sceneId, identity);
+                    }
                 }
             }
         }

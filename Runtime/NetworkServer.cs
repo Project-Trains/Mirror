@@ -84,7 +84,7 @@ namespace Mirror
             Transport.activeTransport.OnServerConnected += OnTransportConnected;
             Transport.activeTransport.OnServerDataReceived += OnTransportData;
             Transport.activeTransport.OnServerDisconnected += OnTransportDisconnected;
-            Transport.activeTransport.OnServerError += OnError;
+            Transport.activeTransport.OnServerError += OnTransportError;
         }
 
         static void RemoveTransportHandlers()
@@ -93,7 +93,7 @@ namespace Mirror
             Transport.activeTransport.OnServerConnected -= OnTransportConnected;
             Transport.activeTransport.OnServerDataReceived -= OnTransportData;
             Transport.activeTransport.OnServerDisconnected -= OnTransportDisconnected;
-            Transport.activeTransport.OnServerError -= OnError;
+            Transport.activeTransport.OnServerError -= OnTransportError;
         }
 
         // calls OnStartClient for all SERVER objects in host mode once.
@@ -344,7 +344,7 @@ namespace Mirror
                 MessagePacking.Pack(message, writer);
                 ArraySegment<byte> segment = writer.ToArraySegment();
 
-                foreach (NetworkConnection conn in identity.observers.Values)
+                foreach (NetworkConnectionToClient conn in identity.observers.Values)
                 {
                     conn.Send(segment, channelId);
                 }
@@ -590,9 +590,12 @@ namespace Mirror
             }
         }
 
-        static void OnError(int connectionId, Exception exception)
+        // transport errors are forwarded to high level
+        static void OnTransportError(int connectionId, Exception exception)
         {
-            Debug.LogException(exception);
+            // transport errors will happen. logging a warning is enough.
+            // make sure the user does not panic.
+            Debug.LogWarning($"Server Transport Error for connId={connectionId}: {exception}. This is fine.");
             // try get connection. passes null otherwise.
             connections.TryGetValue(connectionId, out NetworkConnectionToClient conn);
             OnErrorEvent?.Invoke(conn, exception);
