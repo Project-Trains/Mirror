@@ -78,8 +78,8 @@ namespace Mirror
         /// <summary>Check if client is connected (after connecting).</summary>
         public static bool isConnected => connectState == ConnectState.Connected;
 
-        /// <summary>True if client is running in host mode.</summary>
-        [Obsolete("NetworkClient.isHostClient was renamed to .activeHost to be more obvious")] // DEPRECATED 2022-12-12
+        // Deprecated 2022-12-12
+        [Obsolete("NetworkClient.isHostClient was renamed to .activeHost to be more obvious")]
         public static bool isHostClient => activeHost;
 
         // OnConnected / OnDisconnected used to be NetworkMessages that were
@@ -87,8 +87,8 @@ namespace Mirror
         // Connected/Disconnected messages over the network causing undefined
         // behaviour.
         // => public so that custom NetworkManagers can hook into it
-        public static Action                         OnConnectedEvent;
-        public static Action                         OnDisconnectedEvent;
+        public static Action OnConnectedEvent;
+        public static Action OnDisconnectedEvent;
         public static Action<TransportError, string> OnErrorEvent;
 
         /// <summary>Registered spawnable prefabs by assetId.</summary>
@@ -130,54 +130,19 @@ namespace Mirror
             RemoveTransportHandlers();
 
             // += so that other systems can also hook into it (i.e. statistics)
-            Transport.active.OnClientConnected    += OnTransportConnected;
+            Transport.active.OnClientConnected += OnTransportConnected;
             Transport.active.OnClientDataReceived += OnTransportData;
             Transport.active.OnClientDisconnected += OnTransportDisconnected;
-            Transport.active.OnClientError        += OnTransportError;
+            Transport.active.OnClientError += OnTransportError;
         }
 
         static void RemoveTransportHandlers()
         {
             // -= so that other systems can also hook into it (i.e. statistics)
-            Transport.active.OnClientConnected    -= OnTransportConnected;
+            Transport.active.OnClientConnected -= OnTransportConnected;
             Transport.active.OnClientDataReceived -= OnTransportData;
             Transport.active.OnClientDisconnected -= OnTransportDisconnected;
-            Transport.active.OnClientError        -= OnTransportError;
-        }
-
-        internal static void RegisterMessageHandlers(bool hostMode)
-        {
-            // host mode client / remote client react to some messages differently.
-            // but we still need to add handlers for all of them to avoid
-            // 'message id not found' errors.
-            if (hostMode)
-            {
-                RegisterHandler<ObjectDestroyMessage>(OnHostClientObjectDestroy);
-                RegisterHandler<ObjectHideMessage>(OnHostClientObjectHide);
-                RegisterHandler<NetworkPongMessage>(_ => {}, false);
-                RegisterHandler<SpawnMessage>(OnHostClientSpawn);
-                // host mode doesn't need spawning
-                RegisterHandler<ObjectSpawnStartedMessage>(_ => {});
-                // host mode doesn't need spawning
-                RegisterHandler<ObjectSpawnFinishedMessage>(_ => {});
-                // host mode doesn't need state updates
-                RegisterHandler<EntityStateMessage>(_ => {});
-            }
-            else
-            {
-                RegisterHandler<ObjectDestroyMessage>(OnObjectDestroy);
-                RegisterHandler<ObjectHideMessage>(OnObjectHide);
-                RegisterHandler<NetworkPongMessage>(NetworkTime.OnClientPong, false);
-                RegisterHandler<SpawnMessage>(OnSpawn);
-                RegisterHandler<ObjectSpawnStartedMessage>(OnObjectSpawnStarted);
-                RegisterHandler<ObjectSpawnFinishedMessage>(OnObjectSpawnFinished);
-                RegisterHandler<EntityStateMessage>(OnEntityStateMessage);
-            }
-
-            // These handlers are the same for host and remote clients
-            RegisterHandler<TimeSnapshotMessage>(OnTimeSnapshotMessage);
-            RegisterHandler<ChangeOwnerMessage>(OnChangeOwner);
-            RegisterHandler<RpcBufferMessage>(OnRPCBufferMessage);
+            Transport.active.OnClientError -= OnTransportError;
         }
 
         // connect /////////////////////////////////////////////////////////////
@@ -226,7 +191,8 @@ namespace Mirror
             HostMode.SetupConnections();
         }
 
-        [Obsolete("NetworkClient.ConnectLocalServer was moved to HostMode.InvokeOnConnected")] // DEPRECATED 2022-12-12
+        // Deprecated 2022-12-12
+        [Obsolete("NetworkClient.ConnectLocalServer was moved to HostMode.InvokeOnConnected")]
         public static void ConnectLocalServer() => HostMode.InvokeOnConnected();
 
         // disconnect //////////////////////////////////////////////////////////
@@ -460,6 +426,41 @@ namespace Mirror
         }
 
         // message handlers ////////////////////////////////////////////////////
+        internal static void RegisterMessageHandlers(bool hostMode)
+        {
+            // host mode client / remote client react to some messages differently.
+            // but we still need to add handlers for all of them to avoid
+            // 'message id not found' errors.
+            if (hostMode)
+            {
+                RegisterHandler<ObjectDestroyMessage>(OnHostClientObjectDestroy);
+                RegisterHandler<ObjectHideMessage>(OnHostClientObjectHide);
+                RegisterHandler<NetworkPongMessage>(_ => { }, false);
+                RegisterHandler<SpawnMessage>(OnHostClientSpawn);
+                // host mode doesn't need spawning
+                RegisterHandler<ObjectSpawnStartedMessage>(_ => { });
+                // host mode doesn't need spawning
+                RegisterHandler<ObjectSpawnFinishedMessage>(_ => { });
+                // host mode doesn't need state updates
+                RegisterHandler<EntityStateMessage>(_ => { });
+            }
+            else
+            {
+                RegisterHandler<ObjectDestroyMessage>(OnObjectDestroy);
+                RegisterHandler<ObjectHideMessage>(OnObjectHide);
+                RegisterHandler<NetworkPongMessage>(NetworkTime.OnClientPong, false);
+                RegisterHandler<SpawnMessage>(OnSpawn);
+                RegisterHandler<ObjectSpawnStartedMessage>(OnObjectSpawnStarted);
+                RegisterHandler<ObjectSpawnFinishedMessage>(OnObjectSpawnFinished);
+                RegisterHandler<EntityStateMessage>(OnEntityStateMessage);
+            }
+
+            // These handlers are the same for host and remote clients
+            RegisterHandler<TimeSnapshotMessage>(OnTimeSnapshotMessage);
+            RegisterHandler<ChangeOwnerMessage>(OnChangeOwner);
+            RegisterHandler<RpcBufferMessage>(OnRPCBufferMessage);
+        }
+
         /// <summary>Register a handler for a message type T. Most should require authentication.</summary>
         public static void RegisterHandler<T>(Action<T> handler, bool requireAuthentication = true)
             where T : struct, NetworkMessage
@@ -1370,45 +1371,6 @@ namespace Mirror
             }
         }
 
-        // destroy /////////////////////////////////////////////////////////////
-        static void DestroyObject(uint netId)
-        {
-            // Debug.Log($"NetworkClient.OnObjDestroy netId: {netId}");
-            if (spawned.TryGetValue(netId, out NetworkIdentity identity) && identity != null)
-            {
-                if (identity.isLocalPlayer)
-                    identity.OnStopLocalPlayer();
-
-                identity.OnStopClient();
-
-                // custom unspawn handler for this prefab? (for prefab pools etc.)
-                if (InvokeUnSpawnHandler(identity.assetId, identity.gameObject))
-                {
-                    // reset object after user's handler
-                    identity.Reset();
-                }
-                // otherwise fall back to default Destroy
-                else if (identity.sceneId == 0)
-                {
-                    // don't call reset before destroy so that values are still set in OnDestroy
-                    GameObject.Destroy(identity.gameObject);
-                }
-                // scene object.. disable it in scene instead of destroying
-                else
-                {
-                    identity.gameObject.SetActive(false);
-                    spawnableObjects[identity.sceneId] = identity;
-                    // reset for scene objects
-                    identity.Reset();
-                }
-
-                // remove from dictionary no matter how it is unspawned
-                connection.owned.Remove(identity); // if any
-                spawned.Remove(netId);
-            }
-            //else Debug.LogWarning($"Did not find target for destroy message for {netId}");
-        }
-
         // broadcast ///////////////////////////////////////////////////////////
         static void BroadcastTimeSnapshot()
         {
@@ -1540,7 +1502,7 @@ namespace Mirror
                 Transport.active.ClientLateUpdate();
         }
 
-        // shutdown ////////////////////////////////////////////////////////////
+        // destroy /////////////////////////////////////////////////////////////
         /// <summary>Destroys all networked objects on the client.</summary>
         // Note: NetworkServer.CleanupNetworkIdentities does the same on server.
         public static void DestroyAllClientObjects()
@@ -1606,6 +1568,45 @@ namespace Mirror
             }
         }
 
+        static void DestroyObject(uint netId)
+        {
+            // Debug.Log($"NetworkClient.OnObjDestroy netId: {netId}");
+            if (spawned.TryGetValue(netId, out NetworkIdentity identity) && identity != null)
+            {
+                if (identity.isLocalPlayer)
+                    identity.OnStopLocalPlayer();
+
+                identity.OnStopClient();
+
+                // custom unspawn handler for this prefab? (for prefab pools etc.)
+                if (InvokeUnSpawnHandler(identity.assetId, identity.gameObject))
+                {
+                    // reset object after user's handler
+                    identity.Reset();
+                }
+                // otherwise fall back to default Destroy
+                else if (identity.sceneId == 0)
+                {
+                    // don't call reset before destroy so that values are still set in OnDestroy
+                    GameObject.Destroy(identity.gameObject);
+                }
+                // scene object.. disable it in scene instead of destroying
+                else
+                {
+                    identity.gameObject.SetActive(false);
+                    spawnableObjects[identity.sceneId] = identity;
+                    // reset for scene objects
+                    identity.Reset();
+                }
+
+                // remove from dictionary no matter how it is unspawned
+                connection.owned.Remove(identity); // if any
+                spawned.Remove(netId);
+            }
+            //else Debug.LogWarning($"Did not find target for destroy message for {netId}");
+        }
+
+        // shutdown ////////////////////////////////////////////////////////////
         /// <summary>Shutdown the client.</summary>
         // RuntimeInitializeOnLoadMethod -> fast playmode without domain reload
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -1613,13 +1614,14 @@ namespace Mirror
         {
             //Debug.Log("Shutting down client.");
 
+            // objects need to be destroyed before spawners are cleared
+            // fixes: https://github.com/MirrorNetworking/Mirror/issues/3334
+            DestroyAllClientObjects();
+
             // calls prefabs.Clear();
             // calls spawnHandlers.Clear();
             // calls unspawnHandlers.Clear();
             ClearSpawners();
-
-            // calls spawned.Clear() if no exception occurs
-            DestroyAllClientObjects();
 
             spawned.Clear();
             connection?.owned.Clear();
@@ -1661,7 +1663,7 @@ namespace Mirror
         // GUI /////////////////////////////////////////////////////////////////
         // called from NetworkManager to display timeline interpolation status.
         // useful to indicate catchup / slowdown / dynamic adjustment etc.
-        internal static void OnGUI()
+        public static void OnGUI()
         {
             // only if in world
             if (!ready) return;
@@ -1671,9 +1673,9 @@ namespace Mirror
             GUILayout.BeginHorizontal("Box");
             GUILayout.Label("Snapshot Interp.:");
             // color while catching up / slowing down
-            if      (localTimescale > 1) GUI.color = Color.green; // green traffic light = go fast
+            if (localTimescale > 1) GUI.color = Color.green; // green traffic light = go fast
             else if (localTimescale < 1) GUI.color = Color.red;   // red traffic light = go slow
-            else                         GUI.color = Color.white;
+            else GUI.color = Color.white;
             GUILayout.Box($"timeline: {localTimeline:F2}");
             GUILayout.Box($"buffer: {snapshots.Count}");
             GUILayout.Box($"timescale: {localTimescale:F2}");
