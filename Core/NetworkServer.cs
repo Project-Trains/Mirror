@@ -89,6 +89,7 @@ namespace Mirror
         public static Action<NetworkConnectionToClient> OnConnectedEvent;
         public static Action<NetworkConnectionToClient> OnDisconnectedEvent;
         public static Action<NetworkConnectionToClient, TransportError, string> OnErrorEvent;
+        public static Action<NetworkConnectionToClient, Exception> OnTransportExceptionEvent;
 
         // keep track of actual achieved tick rate.
         // might become lower under heavy load.
@@ -184,6 +185,7 @@ namespace Mirror
             Transport.active.OnServerDataReceived += OnTransportData;
             Transport.active.OnServerDisconnected += OnTransportDisconnected;
             Transport.active.OnServerError += OnTransportError;
+            Transport.active.OnServerTransportException += OnTransportException;
         }
 
         /// <summary>Shuts down the server and disconnects all clients</summary>
@@ -243,6 +245,7 @@ namespace Mirror
             OnConnectedEvent = null;
             OnDisconnectedEvent = null;
             OnErrorEvent = null;
+            OnTransportExceptionEvent = null;
 
             if (aoi != null) aoi.ResetState();
         }
@@ -324,7 +327,7 @@ namespace Mirror
                 // for example, NetworkTransform.
                 // let's not spam the console for unreliable out of order messages.
                 if (channelId == Channels.Reliable)
-                    Debug.LogWarning($"Spawned object not found when handling Command message {identity.name} netId={msg.netId}");
+                    Debug.LogWarning($"Spawned object not found when handling Command message netId={msg.netId}");
                 return;
             }
 
@@ -848,6 +851,17 @@ namespace Mirror
             // try get connection. passes null otherwise.
             connections.TryGetValue(connectionId, out NetworkConnectionToClient conn);
             OnErrorEvent?.Invoke(conn, error, reason);
+        }
+
+        // transport errors are forwarded to high level
+        static void OnTransportException(int connectionId, Exception exception)
+        {
+            // transport errors will happen. logging a warning is enough.
+            // make sure the user does not panic.
+            Debug.LogWarning($"Server Transport Exception for connId={connectionId}: {exception}");
+            // try get connection. passes null otherwise.
+            connections.TryGetValue(connectionId, out NetworkConnectionToClient conn);
+            OnTransportExceptionEvent?.Invoke(conn, exception);
         }
 
         /// <summary>Destroys all of the connection's owned objects on the server.</summary>
@@ -1506,6 +1520,10 @@ namespace Mirror
             if (ownerConnection is LocalConnectionToClient)
                 identity.isOwned = true;
 
+            // NetworkServer.Unspawn sets object as inactive.
+            // NetworkServer.Spawn needs to set them active again in case they were previously unspawned / inactive.
+            identity.gameObject.SetActive(true);
+
             // only call OnStartServer if not spawned yet.
             // check used to be in NetworkIdentity. may not be necessary anymore.
             if (!identity.isServer && identity.netId == 0)
@@ -1555,7 +1573,7 @@ namespace Mirror
         {
             // Debug.Log($"DestroyObject instance:{identity.netId}");
 
-            // NetworkServer.Destroy should only be called on server or host.
+            // NetworkServer.Unspawn should only be called on server or host.
             // on client, show a warning to explain what it does.
             if (!active)
             {
@@ -1636,6 +1654,20 @@ namespace Mirror
         // NetworkServer.Destroy().
         public static void Destroy(GameObject obj)
         {
+            // NetworkServer.Destroy should only be called on server or host.
+            // on client, show a warning to explain what it does.
+            if (!active)
+            {
+                Debug.LogWarning("NetworkServer.Destroy() called without an active server. Servers can only destroy while active, clients can only ask the server to destroy (for example, with a [Command]), after which the server may decide to destroy the object and broadcast the change to all clients.");
+                return;
+            }
+
+            if (obj == null)
+            {
+                Debug.Log("NetworkServer.Destroy(): object is null");
+                return;
+            }
+
             // first, we unspawn it on clients and server
             UnSpawn(obj);
 
@@ -1677,6 +1709,11 @@ namespace Mirror
                 if (identity.visibility != Visibility.ForceHidden)
                 {
                     AddAllReadyServerConnectionsToObservers(identity);
+                }
+                else if (identity.connectionToClient != null)
+                {
+                    // force hidden, but add owner connection
+                    identity.AddObserver(identity.connectionToClient);
                 }
             }
         }

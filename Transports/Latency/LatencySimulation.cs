@@ -161,18 +161,20 @@ namespace Mirror
 
         public override void ClientConnect(string address)
         {
-            wrap.OnClientConnected    = OnClientConnected;
+            wrap.OnClientConnected = OnClientConnected;
             wrap.OnClientDataReceived = OnClientDataReceived;
-            wrap.OnClientError        = OnClientError;
+            wrap.OnClientError = OnClientError;
+            wrap.OnClientTransportException = OnClientTransportException;
             wrap.OnClientDisconnected = OnClientDisconnected;
             wrap.ClientConnect(address);
         }
 
         public override void ClientConnect(Uri uri)
         {
-            wrap.OnClientConnected    = OnClientConnected;
+            wrap.OnClientConnected = OnClientConnected;
             wrap.OnClientDataReceived = OnClientDataReceived;
-            wrap.OnClientError        = OnClientError;
+            wrap.OnClientError = OnClientError;
+            wrap.OnClientTransportException = OnClientTransportException;
             wrap.OnClientDisconnected = OnClientDisconnected;
             wrap.ClientConnect(uri);
         }
@@ -211,6 +213,7 @@ namespace Mirror
             wrap.OnServerConnected = OnServerConnected;
             wrap.OnServerDataReceived = OnServerDataReceived;
             wrap.OnServerError = OnServerError;
+            wrap.OnServerTransportException = OnServerTransportException;
             wrap.OnServerDisconnected = OnServerDisconnected;
             wrap.ServerStart();
         }
@@ -258,7 +261,7 @@ namespace Mirror
 #endif
                 {
                     // send and eat
-                    wrap.ClientSend(new ArraySegment<byte>(message.bytes), Channels.Reliable);
+                    wrap.ClientSend(new ArraySegment<byte>(message.bytes), Channels.Unreliable);
                     unreliableClientToServer.RemoveAt(i);
                     --i;
                 }
@@ -303,7 +306,7 @@ namespace Mirror
 #endif
                 {
                     // send and eat
-                    wrap.ServerSend(message.connectionId, new ArraySegment<byte>(message.bytes), Channels.Reliable);
+                    wrap.ServerSend(message.connectionId, new ArraySegment<byte>(message.bytes), Channels.Unreliable);
                     unreliableServerToClient.RemoveAt(i);
                     --i;
                 }
