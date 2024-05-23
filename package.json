@@ -1,10 +1,10 @@
 {
     "name": "com.vis2k.mirror",
     "displayName": "Mirror",
-    "version": "90.1.4",
+    "version": "89.7.3",
     "unity": "2023.2",
     "description": "Mirror is a high level Networking library for Unity 2022 LTS, compatible with different low level transports.",
-    "author": "vis2k",
+    "author": "MirrorNetworking",
     "documentationUrl": "https://mirror-networking.gitbook.io/docs",
     "changelogUrl": "https://github.com/MirrorNetworking/Mirror/releases",
     "licensesUrl": "https://github.com/MirrorNetworking/Mirror/blob/master/LICENSE",
