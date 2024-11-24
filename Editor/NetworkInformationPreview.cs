@@ -22,12 +22,16 @@ namespace Mirror
 
         class Styles
         {
-            public GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
-            public GUIStyle componentName = new GUIStyle(EditorStyles.boldLabel);
-            public GUIStyle disabledName = new GUIStyle(EditorStyles.miniLabel);
+            public GUIStyle labelStyle;
+            public GUIStyle componentName;
+            public GUIStyle disabledName;
 
             public Styles()
             {
+                labelStyle = new GUIStyle(EditorStyles.label);
+                componentName = new GUIStyle(EditorStyles.boldLabel);
+                disabledName = new GUIStyle(EditorStyles.miniLabel);
+
                 Color fontColor = new Color(0.7f, 0.7f, 0.7f);
                 labelStyle.padding.right += 20;
                 labelStyle.normal.textColor = fontColor;
@@ -60,7 +64,7 @@ namespace Mirror
         }
 
         GUIContent title;
-        Styles styles = new Styles();
+        Styles styles;
 
         public override GUIContent GetPreviewTitle()
         {
@@ -302,6 +306,13 @@ namespace Mirror
                 name = new GUIContent(name),
                 value = new GUIContent((value ? "Yes" : "No"))
             };
+        }
+
+        void OnDisable()
+        {
+            if (styles != null)
+                styles = null;
+            this.Cleanup();
         }
     }
 }
