@@ -36,7 +36,7 @@ namespace Mirror
         /// <summary>Is this transport available in the current platform?</summary>
         public abstract bool Available();
 
-        /// <summary>Is this transported encrypted for secure communication?</summary>
+        /// <summary>Is this transport encrypted for secure communication?</summary>
         public virtual bool IsEncrypted => false;
 
         /// <summary>If encrypted, which cipher is used?</summary>
@@ -196,8 +196,15 @@ namespace Mirror
         /// <summary>Shut down the transport, both as client and server</summary>
         public abstract void Shutdown();
 
-        /// <summary>Called by Unity when quitting. Inheriting Transports should call base for proper Shutdown.</summary>
-        public virtual void OnApplicationQuit()
+        // [Obsolete] in case someone is inheriting it.
+        // don't use this anymore.
+        // fixes: https://github.com/MirrorNetworking/Mirror/issues/2802
+        // DEPRECATED 2024-10-29
+        [Obsolete("Override OnDestroy instead of OnApplicationQuit.")]
+        public virtual void OnApplicationQuit() {}
+
+        // fixes: https://github.com/MirrorNetworking/Mirror/issues/2802
+        public virtual void OnDestroy()
         {
             // stop transport (e.g. to shut down threads)
             // (when pressing Stop in the Editor, Unity keeps threads alive

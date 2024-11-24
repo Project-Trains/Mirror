@@ -12,6 +12,16 @@ namespace Mirror
         /// <summary>This is called after the item is removed. T is the OLD item</summary>
         public Action<T> OnRemove;
 
+        /// <summary>This is called BEFORE the data is cleared</summary>
+        public Action OnClear;
+
+        public enum Operation : byte
+        {
+            OP_ADD,
+            OP_REMOVE,
+            OP_CLEAR
+        }
+
         /// <summary>
         /// This is called for all changes to the Set.
         /// <para>For OP_ADD, T is the NEW value of the entry.</para>
@@ -20,24 +30,10 @@ namespace Mirror
         /// </summary>
         public Action<Operation, T> OnChange;
 
-        /// <summary>This is called BEFORE the data is cleared</summary>
-        public Action OnClear;
-
-        // Deprecated 2024-03-22
-        [Obsolete("Use individual Actions, which pass OLD value where appropriate, instead.")]
-        public Action<Operation, T> Callback;
-
         protected readonly ISet<T> objects;
 
         public int Count => objects.Count;
         public bool IsReadOnly => !IsWritable();
-
-        public enum Operation : byte
-        {
-            OP_ADD,
-            OP_REMOVE,
-            OP_CLEAR
-        }
 
         struct Change
         {
@@ -116,23 +112,14 @@ namespace Mirror
                 case Operation.OP_ADD:
                     OnAdd?.Invoke(newItem);
                     OnChange?.Invoke(op, newItem);
-#pragma warning disable CS0618 // Type or member is obsolete
-                    Callback?.Invoke(op, newItem);
-#pragma warning restore CS0618 // Type or member is obsolete
                     break;
                 case Operation.OP_REMOVE:
                     OnRemove?.Invoke(oldItem);
                     OnChange?.Invoke(op, oldItem);
-#pragma warning disable CS0618 // Type or member is obsolete
-                    Callback?.Invoke(op, oldItem);
-#pragma warning restore CS0618 // Type or member is obsolete
                     break;
                 case Operation.OP_CLEAR:
                     OnClear?.Invoke();
                     OnChange?.Invoke(op, default);
-#pragma warning disable CS0618 // Type or member is obsolete
-                    Callback?.Invoke(op, default);
-#pragma warning restore CS0618 // Type or member is obsolete
                     break;
             }
         }

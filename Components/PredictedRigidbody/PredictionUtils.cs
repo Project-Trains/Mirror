@@ -21,15 +21,22 @@ namespace Mirror
 
             // copy all properties
             rigidbodyCopy.mass = original.mass;
+#if UNITY_6000_0_OR_NEWER
+            rigidbodyCopy.linearDamping = original.linearDamping;
+            rigidbodyCopy.angularDamping = original.angularDamping;
+#else
             rigidbodyCopy.drag = original.drag;
             rigidbodyCopy.angularDrag = original.angularDrag;
+#endif
             rigidbodyCopy.useGravity = original.useGravity;
             rigidbodyCopy.isKinematic = original.isKinematic;
             rigidbodyCopy.interpolation = original.interpolation;
             rigidbodyCopy.collisionDetectionMode = original.collisionDetectionMode;
+            // fix: need to set freezeRotation before constraints:
+            // https://github.com/MirrorNetworking/Mirror/pull/3946
+            rigidbodyCopy.freezeRotation = original.freezeRotation;
             rigidbodyCopy.constraints = original.constraints;
             rigidbodyCopy.sleepThreshold = original.sleepThreshold;
-            rigidbodyCopy.freezeRotation = original.freezeRotation;
 
             // moving (Configurable)Joints messes up their range of motion unless
             // we reset to initial position first (we do this in PredictedRigibody.cs).
@@ -40,7 +47,11 @@ namespace Mirror
             // projects may keep Rigidbodies as kinematic sometimes. in that case, setting velocity would log an error
             if (!original.isKinematic)
             {
+#if UNITY_6000_0_OR_NEWER
+                rigidbodyCopy.linearVelocity = original.linearVelocity;
+#else
                 rigidbodyCopy.velocity = original.velocity;
+#endif
                 rigidbodyCopy.angularVelocity = original.angularVelocity;
             }
 

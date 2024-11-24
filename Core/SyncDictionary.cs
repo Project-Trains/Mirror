@@ -15,6 +15,17 @@ namespace Mirror
         /// <summary>This is called after the item is removed with TKey. TValue is the OLD item</summary>
         public Action<TKey, TValue> OnRemove;
 
+        /// <summary>This is called before the data is cleared</summary>
+        public Action OnClear;
+
+        public enum Operation : byte
+        {
+            OP_ADD,
+            OP_SET,
+            OP_REMOVE,
+            OP_CLEAR
+        }
+
         /// <summary>
         /// This is called for all changes to the Dictionary.
         /// <para>For OP_ADD, TValue is the NEW value of the entry.</para>
@@ -22,13 +33,6 @@ namespace Mirror
         /// <para>For OP_CLEAR, both TKey and TValue are default.</para>
         /// </summary>
         public Action<Operation, TKey, TValue> OnChange;
-
-        /// <summary>This is called before the data is cleared</summary>
-        public Action OnClear;
-
-        // Deprecated 2024-03-22
-        [Obsolete("Use individual Actions, which pass OLD values where appropriate, instead.")]
-        public Action<Operation, TKey, TValue> Callback;
 
         protected readonly IDictionary<TKey, TValue> objects;
 
@@ -39,14 +43,6 @@ namespace Mirror
 
         public int Count => objects.Count;
         public bool IsReadOnly => !IsWritable();
-
-        public enum Operation : byte
-        {
-            OP_ADD,
-            OP_CLEAR,
-            OP_REMOVE,
-            OP_SET
-        }
 
         struct Change
         {
@@ -343,10 +339,6 @@ namespace Mirror
                     OnChange?.Invoke(op, default, default);
                     break;
             }
-
-#pragma warning disable CS0618 // Type or member is obsolete
-            Callback?.Invoke(op, key, item);
-#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => objects.GetEnumerator();

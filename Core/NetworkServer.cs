@@ -6,6 +6,18 @@ using UnityEngine;
 
 namespace Mirror
 {
+    public enum ReplacePlayerOptions
+    {
+        /// <summary>Player Object remains active on server and clients. Ownership is not removed</summary>
+        KeepAuthority,
+        /// <summary>Player Object remains active on server and clients. Only ownership is removed</summary>
+        KeepActive,
+        /// <summary>Player Object is unspawned on clients but remains on server</summary>
+        Unspawn,
+        /// <summary>Player Object is destroyed on server and clients</summary>
+        Destroy
+    }
+
     public enum RemovePlayerOptions
     {
         /// <summary>Player Object remains active on server and clients. Only ownership is removed</summary>
@@ -58,9 +70,16 @@ namespace Mirror
         public static readonly Dictionary<uint, NetworkIdentity> spawned =
             new Dictionary<uint, NetworkIdentity>();
 
-        /// <summary>Single player mode can use dontListen to not accept incoming connections</summary>
-        // see also: https://github.com/vis2k/Mirror/pull/2595
-        public static bool dontListen;
+        /// <summary>Single player mode can set listen=false to not accept incoming connections.</summary>
+        public static bool listen;
+
+        // DEPRECATED 2024-10-14
+        [Obsolete("NetworkServer.dontListen was replaced with NetworkServer.listen. The new value is the opposite, and avoids double negatives like 'dontListen=false'")]
+        public static bool dontListen
+        {
+            get => !listen;
+            set => listen = !value;
+        }
 
         /// <summary>active checks if the server has been started either has standalone or as host server.</summary>
         public static bool active { get; internal set; }
@@ -125,7 +144,7 @@ namespace Mirror
             maxConnections = maxConns;
 
             // only start server if we want to listen
-            if (!dontListen)
+            if (listen)
             {
                 Transport.active.ServerStart();
 
@@ -229,7 +248,7 @@ namespace Mirror
             }
 
             // Reset all statics here....
-            dontListen = false;
+            listen = true;
             isLoadingScene = false;
             lastSendTime = 0;
             actualTickRate = 0;
@@ -646,7 +665,7 @@ namespace Mirror
 
         static void OnTransportConnectedWithAddress(int connectionId, string clientAddress)
         {
-            if (IsConnectionAllowed(connectionId))
+            if (IsConnectionAllowed(connectionId, clientAddress))
             {
                 // create a connection
                 NetworkConnectionToClient conn = new NetworkConnectionToClient(connectionId, clientAddress);
@@ -659,21 +678,28 @@ namespace Mirror
             }
         }
 
-        static bool IsConnectionAllowed(int connectionId)
+        static bool IsConnectionAllowed(int connectionId, string address)
         {
+            // only accept connections while listening
+            if (!listen)
+            {
+                Debug.Log($"Server not listening, rejecting connectionId={connectionId} with address={address}");
+                return false;
+            }
+
             // connectionId needs to be != 0 because 0 is reserved for local player
             // note that some transports like kcp generate connectionId by
             // hashing which can be < 0 as well, so we need to allow < 0!
             if (connectionId == 0)
             {
-                Debug.LogError($"Server.HandleConnect: invalid connectionId: {connectionId} . Needs to be != 0, because 0 is reserved for local player.");
+                Debug.LogError($"Server.HandleConnect: invalid connectionId={connectionId}. Needs to be != 0, because 0 is reserved for local player.");
                 return false;
             }
 
             // connectionId not in use yet?
             if (connections.ContainsKey(connectionId))
             {
-                Debug.LogError($"Server connectionId {connectionId} already in use...client will be kicked");
+                Debug.LogError($"Server connectionId={connectionId} already in use. Client with address={address} will be kicked");
                 return false;
             }
 
@@ -684,7 +710,7 @@ namespace Mirror
             //  Transport can't do that)
             if (connections.Count >= maxConnections)
             {
-                Debug.LogError($"Server full, client {connectionId} will be kicked");
+                Debug.LogError($"Server full, client connectionId={connectionId} with address={address} will be kicked");
                 return false;
             }
 
@@ -1100,10 +1126,36 @@ namespace Mirror
             return true;
         }
 
-        /// <summary>Replaces connection's player object. The old object is not destroyed.</summary>
-        // This does NOT change the ready state of the connection, so it can
-        // safely be used while changing scenes.
+        // Deprecated 2024-008-09
+        [Obsolete("Use ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, uint assetId, ReplacePlayerOptions replacePlayerOptions) instead")]
+        public static bool ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, uint assetId, bool keepAuthority = false)
+        {
+            if (GetNetworkIdentity(player, out NetworkIdentity identity))
+                identity.assetId = assetId;
+
+            return ReplacePlayerForConnection(conn, player, keepAuthority ? ReplacePlayerOptions.KeepAuthority : ReplacePlayerOptions.KeepActive);
+        }
+
+        // Deprecated 2024-008-09
+        [Obsolete("Use ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, ReplacePlayerOptions replacePlayerOptions) instead")]
         public static bool ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, bool keepAuthority = false)
+        {
+            return ReplacePlayerForConnection(conn, player, keepAuthority ? ReplacePlayerOptions.KeepAuthority : ReplacePlayerOptions.KeepActive);
+        }
+
+        /// <summary>Replaces connection's player object. The old object is not destroyed.</summary>
+        // This does NOT change the ready state of the connection, so it can safely be used while changing scenes.
+        public static bool ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, uint assetId, ReplacePlayerOptions replacePlayerOptions)
+        {
+            if (GetNetworkIdentity(player, out NetworkIdentity identity))
+                identity.assetId = assetId;
+
+            return ReplacePlayerForConnection(conn, player, replacePlayerOptions);
+        }
+
+        /// <summary>Replaces connection's player object. The old object is not destroyed.</summary>
+        // This does NOT change the ready state of the connection, so it can safely be used while changing scenes.
+        public static bool ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, ReplacePlayerOptions replacePlayerOptions)
         {
             if (!player.TryGetComponent(out NetworkIdentity identity))
             {
@@ -1145,31 +1197,26 @@ namespace Mirror
 
             Respawn(identity);
 
-            if (keepAuthority)
+            switch (replacePlayerOptions)
             {
-                // This needs to be sent to clear isLocalPlayer on
-                // client while keeping hasAuthority true
-                SendChangeOwnerMessage(previousPlayer, conn);
-            }
-            else
-            {
-                // This clears both isLocalPlayer and hasAuthority on client
-                previousPlayer.RemoveClientAuthority();
+                case ReplacePlayerOptions.KeepAuthority:
+                    // This needs to be sent to clear isLocalPlayer on
+                    // client while keeping hasAuthority true
+                    SendChangeOwnerMessage(previousPlayer, conn);
+                    break;
+                case ReplacePlayerOptions.KeepActive:
+                    // This clears both isLocalPlayer and hasAuthority on client
+                    previousPlayer.RemoveClientAuthority();
+                    break;
+                case ReplacePlayerOptions.Unspawn:
+                    UnSpawn(previousPlayer.gameObject);
+                    break;
+                case ReplacePlayerOptions.Destroy:
+                    Destroy(previousPlayer.gameObject);
+                    break;
             }
 
             return true;
-        }
-
-        /// <summary>Replaces connection's player object. The old object is not destroyed.</summary>
-        // This does NOT change the ready state of the connection, so it can
-        // safely be used while changing scenes.
-        public static bool ReplacePlayerForConnection(NetworkConnectionToClient conn, GameObject player, uint assetId, bool keepAuthority = false)
-        {
-            if (GetNetworkIdentity(player, out NetworkIdentity identity))
-            {
-                identity.assetId = assetId;
-            }
-            return ReplacePlayerForConnection(conn, player, keepAuthority);
         }
 
         /// <summary>Removes the player object from the connection</summary>
@@ -1870,6 +1917,7 @@ namespace Mirror
         static void BroadcastToConnection(NetworkConnectionToClient connection)
         {
             // for each entity that this connection is seeing
+            bool hasNull = false;
             foreach (NetworkIdentity identity in connection.observing)
             {
                 // make sure it's not null or destroyed.
@@ -1895,8 +1943,16 @@ namespace Mirror
                 // always call Remove in OnObjectDestroy everywhere.
                 // if it does have null then someone used
                 // GameObject.Destroy instead of NetworkServer.Destroy.
-                else Debug.LogWarning($"Found 'null' entry in observing list for connectionId={connection.connectionId}. Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
+                else
+                {
+                    hasNull = true;
+                    Debug.LogWarning($"Found 'null' entry in observing list for connectionId={connection.connectionId}. Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
+                }
             }
+
+            // recover from null entries.
+            // otherwise every broadcast will spam the warning and slow down performance until restart.
+            if (hasNull) connection.observing.RemoveWhere(identity => identity == null);
         }
 
         // helper function to check a connection for inactivity and disconnect if necessary
