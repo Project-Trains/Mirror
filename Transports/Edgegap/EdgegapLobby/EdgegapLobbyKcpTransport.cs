@@ -20,6 +20,7 @@ namespace Edgegap
         private string _lobbyId;
         private string _playerId;
         private TransportStatus _status = TransportStatus.Offline;
+        public string LobbyId => _lobbyId;
         public enum TransportStatus
         {
             Offline,
